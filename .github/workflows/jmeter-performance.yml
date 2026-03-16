@@ -43,7 +43,7 @@ jobs:
           path: artifacts/baseline
 
   load150:
-    name: Load Test (150 Users)
+    name: Load Test (150 User)
     runs-on: ubuntu-latest
     needs: baseline
 
