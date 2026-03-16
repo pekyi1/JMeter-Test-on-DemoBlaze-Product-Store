@@ -314,3 +314,35 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Build Notification Payload
+        if: always()
+        run: |
+          URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          echo "REPORT_URL=$URL" >> $GITHUB_ENV
+          echo "JMeter Performance Test Report: $URL" > email_body.txt
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": "🚀 *JMeter Performance Tests Complete*\n\nView the full report here: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Email report
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: JMeter Performance Tests - ${{ job.status == 'success' && 'PASS ✅' || 'FAIL ❌' }} - ${{ github.repository }}
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          secure: false
+          body: file://email_body.txt
