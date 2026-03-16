@@ -318,18 +318,75 @@ jobs:
       - name: Build Notification Payload
         if: always()
         run: |
-          URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          echo "REPORT_URL=$URL" >> $GITHUB_ENV
-          echo "JMeter Performance Test Report: $URL" > email_body.txt
+          export REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          python3 - <<'PY'
+          import csv, os, json
+          
+          tests = [
+              ("Baseline", "all-reports/baseline-report/baseline-results.jtl", "50"),
+              ("Load", "all-reports/load150-report/load150-results.jtl", "150"),
+              ("Load", "all-reports/load300-report/load300-results.jtl", "300"),
+              ("Stress", "all-reports/stress500-report/stress500-results.jtl", "500"),
+              ("Endurance", "all-reports/endurance-report/endurance-results.jtl", "50 (10min)")
+          ]
+          
+          rows = []
+          run_num = os.environ.get('GITHUB_RUN_NUMBER', '0')
+          report_url = os.environ.get('REPORT_URL', '')
+          
+          for name, path, users in tests:
+              if not os.path.exists(path):
+                  continue
+              try:
+                  with open(path, 'r') as f:
+                      reader = csv.DictReader(f)
+                      samples = 0
+                      errors = 0
+                      total_rt = 0
+                      for row in reader:
+                          samples += 1
+                          if row['success'] == 'false':
+                              errors += 1
+                          total_rt += int(row['elapsed'])
+                      
+                      avg_rt = round(total_rt / samples) if samples > 0 else 0
+                      error_pct = (errors / samples * 100) if samples > 0 else 0
+                      rows.append([name, users, samples, errors, f"{error_pct:.2f}%", f"{avg_rt}ms"])
+              except Exception as e:
+                  print(f"Error parsing {path}: {e}")
+          
+          # HTML Table for Email
+          html_table = "<table border='1' style='border-collapse: collapse; width: 100%; text-align: center; font-family: Arial;'>"
+          html_table += "<tr style='background-color: #0066cc; color: white;'><th>Test</th><th>Users</th><th>Samples</th><th>Errors</th><th>Error %</th><th>Avg RT</th></tr>"
+          for r in rows:
+              html_table += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td>{r[5]}</td></tr>"
+          html_table += "</table>"
+          
+          with open("email_body.html", "w") as f:
+              f.write(f"<h3>DemoBlaze Performance Test Results — Run #{run_num}</h3>")
+              f.write(html_table)
+              f.write(f"<p><a href='{report_url}' style='display: inline-block; padding: 10px 20px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 5px;'>View Full HTML Reports</a></p>")
+          
+          # Slack Text Table
+          slack_table = "```\n"
+          slack_table += "| Test      | Users | Samples | Errors | Error % | Avg RT |\n"
+          slack_table += "|-----------|-------|---------|--------|---------|--------|\n"
+          for r in rows:
+              slack_table += f"| {r[0]:<9} | {r[1]:<5} | {r[2]:<7} | {r[3]:<6} | {r[4]:<7} | {r[5]:<6} |\n"
+          slack_table += "```"
+          
+          slack_payload = {
+              "text": f"🚀 *JMeter Performance Report — Run #{run_num}*\n\n{slack_table}\n\nView full report: {report_url}"
+          }
+          with open("slack_payload.json", "w") as f:
+              json.dump(slack_payload, f)
+          PY
 
       - name: Notify Slack
         if: always()
         uses: slackapi/slack-github-action@v1.27.0
         with:
-          payload: |
-            {
-              "text": "🚀 *JMeter Performance Tests Complete*\n\nView the full report here: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-            }
+          payload-file-path: slack_payload.json
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
@@ -341,8 +398,8 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: JMeter Performance Tests - ${{ job.status == 'success' && 'PASS ✅' || 'FAIL ❌' }} - ${{ github.repository }}
+          subject: JMeter Performance Report - Run #${{ github.run_number }} - ${{ github.repository }}
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.SMTP_USERNAME }}
           secure: false
-          body: file://email_body.txt
+          html_body: file://email_body.html
