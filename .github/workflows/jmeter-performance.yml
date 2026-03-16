@@ -8,6 +8,11 @@ on:
       - 'Jmeter/**'
       - '.github/workflows/jmeter-performance.yml'
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   baseline:
     name: Baseline Test (50 Users)
@@ -177,3 +182,135 @@ jobs:
         with:
           name: endurance-report
           path: artifacts/endurance
+
+  deploy-pages:
+    name: Deploy Reports to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: endurance
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+
+      - name: Create homepage
+        run: |
+          mkdir -p site
+          cat << 'EOF' > site/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8">
+          <title>JMeter Performance Test Reports</title>
+          <style>
+          body{
+              font-family: Arial, Helvetica, sans-serif;
+              background:#0f172a;
+              color:white;
+              text-align:center;
+              padding-top:80px;
+          }
+          h1{
+              font-size:36px;
+              margin-bottom:10px;
+          }
+          .subtitle{
+              color:#94a3b8;
+              margin-bottom:40px;
+          }
+          .container{
+              display:grid;
+              grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+              gap:20px;
+              max-width:800px;
+              margin:auto;
+          }
+          .button{
+              display:block;
+              padding:20px;
+              border-radius:12px;
+              text-decoration:none;
+              font-size:18px;
+              font-weight:bold;
+              color:white;
+              transition:0.2s;
+          }
+          .baseline{ background:#3b82f6; }
+          .load150{ background:#10b981; }
+          .load300{ background:#f59e0b; }
+          .stress{ background:#ef4444; }
+          .endurance{ background:#8b5cf6; }
+          .button:hover{
+              transform:scale(1.05);
+              opacity:0.9;
+          }
+          .footer{
+              margin-top:50px;
+              color:#64748b;
+          }
+          </style>
+          </head>
+          <body>
+          <h1>JMeter Performance Test Reports</h1>
+          <p class="subtitle">Demoblaze Product Store Performance Testing</p>
+          <div class="container">
+          <a class="button baseline" href="./baseline/">
+          Baseline Test<br>
+          <small>50 Users</small>
+          </a>
+          <a class="button load150" href="./load150/">
+          Load Test<br>
+          <small>150 Users</small>
+          </a>
+          <a class="button load300" href="./load300/">
+          Peak Load Test<br>
+          <small>300 Users</small>
+          </a>
+          <a class="button stress" href="./stress500/">
+          Stress Test<br>
+          <small>500 Users</small>
+          </a>
+          <a class="button endurance" href="./endurance/">
+          Endurance Test<br>
+          <small>Long Duration</small>
+          </a>
+          </div>
+          <div class="footer">
+          Generated automatically from CI pipeline
+          </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Prepare pages content
+        run: |
+          mkdir -p site/baseline
+          mkdir -p site/load150
+          mkdir -p site/load300
+          mkdir -p site/stress500
+          mkdir -p site/endurance
+
+          cp -r all-reports/baseline-report/html-report/* site/baseline/
+          cp -r all-reports/load150-report/html-report/* site/load150/
+          cp -r all-reports/load300-report/html-report/* site/load300/
+          cp -r all-reports/stress500-report/html-report/* site/stress500/
+          cp -r all-reports/endurance-report/html-report/* site/endurance/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
