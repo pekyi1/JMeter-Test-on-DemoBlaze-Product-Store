@@ -1,0 +1,43 @@
+name: JMeter Performance Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'jmeter/**'
+      - '.github/workflows/jmeter-performance.yml'
+
+jobs:
+  baseline:
+    name: Baseline Test (50 Users)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download and extract JMeter
+        run: |
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+
+      - name: Run baseline performance test
+        run: |
+          mkdir -p artifacts/baseline
+          apache-jmeter-5.6.3/bin/jmeter -n \
+            -t jmeter/demoblaze-baseline-50.jmx \
+            -l artifacts/baseline/baseline-results.jtl \
+            -e -o artifacts/baseline/html-report
+
+      - name: Upload baseline report
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-report
+          path: artifacts/baseline
