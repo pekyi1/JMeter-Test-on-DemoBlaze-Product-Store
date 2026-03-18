@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'Jmeter/**'
+      - 'jmeter/**'
       - '.github/workflows/jmeter-performance.yml'
 
 permissions:
@@ -14,8 +14,8 @@ permissions:
   id-token: write
 
 jobs:
-  baseline:
-    name: Baseline Test (50 Users)
+  run-tests:
+    name: Run All Thread Groups
     runs-on: ubuntu-latest
 
     steps:
@@ -30,163 +30,63 @@ jobs:
 
       - name: Download and extract JMeter
         run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
           tar -xzf apache-jmeter-5.6.3.tgz
 
-      - name: Run baseline performance test
-        run: |
-          mkdir -p artifacts/baseline
-          apache-jmeter-5.6.3/bin/jmeter -n \
-            -t Jmeter/demoblaze-baseline-50.jmx \
-            -l artifacts/baseline/baseline-results.jtl \
-            -e -o artifacts/baseline/html-report
+      - name: Create results directory
+        run: mkdir -p jmeter/results
 
-      - name: Upload baseline report
+      - name: Run test plan (all thread groups)
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -n \
+            -t jmeter/demoblaze-test-plan.jmx \
+            -l jmeter/results/combined-results.jtl \
+            -j jmeter/results/jmeter.log
+
+      - name: Generate HTML report — Light Load (25 Users)
+        if: always()
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/light_load.jtl \
+            -o artifacts/light-load/html-report
+
+      - name: Generate HTML report — Baseline (50 Users)
+        if: always()
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/baseline_load.jtl \
+            -o artifacts/baseline/html-report
+
+      - name: Generate HTML report — Peak Load (300 Users)
+        if: always()
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/peak_load.jtl \
+            -o artifacts/peak-load/html-report
+
+      - name: Generate HTML report — Stress Test (500 Users)
+        if: always()
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/stress_test.jtl \
+            -o artifacts/stress-test/html-report
+
+      - name: Generate HTML report — Endurance (100 Users)
+        if: always()
+        run: |
+          apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/endurance_test.jtl \
+            -o artifacts/endurance/html-report
+
+      - name: Upload all reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: baseline-report
-          path: artifacts/baseline
-
-  load150:
-    name: Load Test (150 Users)
-    runs-on: ubuntu-latest
-    needs: baseline
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Download and extract JMeter
-        run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-          tar -xzf apache-jmeter-5.6.3.tgz
-
-      - name: Run load test 150
-        run: |
-          mkdir -p artifacts/load150
-          apache-jmeter-5.6.3/bin/jmeter -n \
-            -t Jmeter/demoblaze-load-150.jmx \
-            -l artifacts/load150/load150-results.jtl \
-            -e -o artifacts/load150/html-report
-
-      - name: Upload load150 report
-        uses: actions/upload-artifact@v4
-        with:
-          name: load150-report
-          path: artifacts/load150
-
-  load300:
-    name: Peak Load Test (300 Users)
-    runs-on: ubuntu-latest
-    needs: load150
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Download and extract JMeter
-        run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-          tar -xzf apache-jmeter-5.6.3.tgz
-
-      - name: Run load test 300
-        run: |
-          mkdir -p artifacts/load300
-          apache-jmeter-5.6.3/bin/jmeter -n \
-            -t Jmeter/demoblaze-load-300.jmx \
-            -l artifacts/load300/load300-results.jtl \
-            -e -o artifacts/load300/html-report
-
-      - name: Upload load300 report
-        uses: actions/upload-artifact@v4
-        with:
-          name: load300-report
-          path: artifacts/load300
-
-  stress500:
-    name: Stress Test (500 Users)
-    runs-on: ubuntu-latest
-    needs: load300
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Download and extract JMeter
-        run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-          tar -xzf apache-jmeter-5.6.3.tgz
-
-      - name: Run stress test 500
-        run: |
-          mkdir -p artifacts/stress500
-          apache-jmeter-5.6.3/bin/jmeter -n \
-            -t Jmeter/demoblaze-stress-500.jmx \
-            -l artifacts/stress500/stress500-results.jtl \
-            -e -o artifacts/stress500/html-report
-
-      - name: Upload stress500 report
-        uses: actions/upload-artifact@v4
-        with:
-          name: stress500-report
-          path: artifacts/stress500
-
-  endurance:
-    name: Endurance Test
-    runs-on: ubuntu-latest
-    needs: stress500
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Download and extract JMeter
-        run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-          tar -xzf apache-jmeter-5.6.3.tgz
-
-      - name: Run endurance test
-        run: |
-          mkdir -p artifacts/endurance
-          apache-jmeter-5.6.3/bin/jmeter -n \
-            -t Jmeter/demoblaze-endurance.jmx \
-            -l artifacts/endurance/endurance-results.jtl \
-            -e -o artifacts/endurance/html-report
-
-      - name: Upload endurance report
-        uses: actions/upload-artifact@v4
-        with:
-          name: endurance-report
-          path: artifacts/endurance
+          name: jmeter-reports
+          path: |
+            artifacts/
+            jmeter/results/
 
   deploy-pages:
     name: Deploy Reports to GitHub Pages
     runs-on: ubuntu-latest
-    needs: endurance
+    needs: run-tests
+    if: always() && needs.run-tests.result != 'cancelled'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -195,9 +95,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all reports
+      - name: Download reports
         uses: actions/download-artifact@v4
         with:
+          name: jmeter-reports
           path: all-reports
 
       - name: Create homepage
@@ -208,82 +109,124 @@ jobs:
           <html lang="en">
           <head>
           <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>JMeter Performance Test Reports</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
           <style>
+          *{ margin:0; padding:0; box-sizing:border-box; }
           body{
-              font-family: Arial, Helvetica, sans-serif;
-              background:#0f172a;
-              color:white;
-              text-align:center;
-              padding-top:80px;
+              font-family: 'Inter', Arial, sans-serif;
+              background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+              color: white;
+              min-height: 100vh;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              padding: 40px 20px;
           }
           h1{
-              font-size:36px;
-              margin-bottom:10px;
+              font-size: 2.5rem;
+              font-weight: 700;
+              margin-bottom: 8px;
+              background: linear-gradient(90deg, #60a5fa, #a78bfa);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
           }
           .subtitle{
-              color:#94a3b8;
-              margin-bottom:40px;
+              color: #94a3b8;
+              margin-bottom: 48px;
+              font-size: 1.1rem;
           }
           .container{
-              display:grid;
-              grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
-              gap:20px;
-              max-width:800px;
-              margin:auto;
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+              gap: 20px;
+              max-width: 900px;
+              width: 100%;
           }
-          .button{
-              display:block;
-              padding:20px;
-              border-radius:12px;
-              text-decoration:none;
-              font-size:18px;
-              font-weight:bold;
-              color:white;
-              transition:0.2s;
+          .card{
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              padding: 28px 20px;
+              border-radius: 16px;
+              text-decoration: none;
+              font-weight: 600;
+              color: white;
+              transition: transform 0.25s ease, box-shadow 0.25s ease;
+              backdrop-filter: blur(8px);
+              border: 1px solid rgba(255,255,255,0.08);
+              position: relative;
+              overflow: hidden;
           }
-          .baseline{ background:#3b82f6; }
-          .load150{ background:#10b981; }
-          .load300{ background:#f59e0b; }
-          .stress{ background:#ef4444; }
-          .endurance{ background:#8b5cf6; }
-          .button:hover{
-              transform:scale(1.05);
-              opacity:0.9;
+          .card::before{
+              content: '';
+              position: absolute;
+              inset: 0;
+              opacity: 0.15;
+              border-radius: inherit;
+              transition: opacity 0.25s ease;
           }
+          .card:hover{
+              transform: translateY(-6px);
+              box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+          }
+          .card:hover::before{ opacity: 0.25; }
+          .card .label{ font-size: 1.15rem; margin-bottom: 6px; z-index:1; }
+          .card small{ color: rgba(255,255,255,0.7); font-weight: 400; z-index:1; }
+
+          .light-load{ background: rgba(34,197,94,0.2); border-color: rgba(34,197,94,0.3); }
+          .light-load::before{ background: #22c55e; }
+
+          .baseline{ background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.3); }
+          .baseline::before{ background: #3b82f6; }
+
+          .peak-load{ background: rgba(245,158,11,0.2); border-color: rgba(245,158,11,0.3); }
+          .peak-load::before{ background: #f59e0b; }
+
+          .stress{ background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.3); }
+          .stress::before{ background: #ef4444; }
+
+          .endurance{ background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.3); }
+          .endurance::before{ background: #8b5cf6; }
+
           .footer{
-              margin-top:50px;
-              color:#64748b;
+              margin-top: 56px;
+              color: #475569;
+              font-size: 0.85rem;
           }
           </style>
           </head>
           <body>
           <h1>JMeter Performance Test Reports</h1>
-          <p class="subtitle">Demoblaze Product Store Performance Testing</p>
+          <p class="subtitle">Demoblaze Product Store — Performance Testing Dashboard</p>
           <div class="container">
-          <a class="button baseline" href="./baseline/">
-          Baseline Test<br>
-          <small>50 Users</small>
-          </a>
-          <a class="button load150" href="./load150/">
-          Load Test<br>
-          <small>150 Users</small>
-          </a>
-          <a class="button load300" href="./load300/">
-          Peak Load Test<br>
-          <small>300 Users</small>
-          </a>
-          <a class="button stress" href="./stress500/">
-          Stress Test<br>
-          <small>500 Users</small>
-          </a>
-          <a class="button endurance" href="./endurance/">
-          Endurance Test<br>
-          <small>Long Duration</small>
-          </a>
+            <a class="card light-load" href="./light-load/">
+              <span class="label">Light Load Test</span>
+              <small>25 Users</small>
+            </a>
+            <a class="card baseline" href="./baseline/">
+              <span class="label">Baseline Test</span>
+              <small>50 Users</small>
+            </a>
+            <a class="card peak-load" href="./peak-load/">
+              <span class="label">Peak Load Test</span>
+              <small>300 Users</small>
+            </a>
+            <a class="card stress" href="./stress-test/">
+              <span class="label">Stress Test</span>
+              <small>500 Users</small>
+            </a>
+            <a class="card endurance" href="./endurance/">
+              <span class="label">Endurance Test</span>
+              <small>100 Users</small>
+            </a>
           </div>
           <div class="footer">
-          Generated automatically from CI pipeline
+            Generated automatically from CI pipeline
           </div>
           </body>
           </html>
@@ -291,17 +234,17 @@ jobs:
 
       - name: Prepare pages content
         run: |
+          mkdir -p site/light-load
           mkdir -p site/baseline
-          mkdir -p site/load150
-          mkdir -p site/load300
-          mkdir -p site/stress500
+          mkdir -p site/peak-load
+          mkdir -p site/stress-test
           mkdir -p site/endurance
 
-          cp -r all-reports/baseline-report/html-report/* site/baseline/
-          cp -r all-reports/load150-report/html-report/* site/load150/
-          cp -r all-reports/load300-report/html-report/* site/load300/
-          cp -r all-reports/stress500-report/html-report/* site/stress500/
-          cp -r all-reports/endurance-report/html-report/* site/endurance/
+          cp -r all-reports/artifacts/light-load/html-report/* site/light-load/ 2>/dev/null || echo "⚠ Light load report not found"
+          cp -r all-reports/artifacts/baseline/html-report/* site/baseline/ 2>/dev/null || echo "⚠ Baseline report not found"
+          cp -r all-reports/artifacts/peak-load/html-report/* site/peak-load/ 2>/dev/null || echo "⚠ Peak load report not found"
+          cp -r all-reports/artifacts/stress-test/html-report/* site/stress-test/ 2>/dev/null || echo "⚠ Stress test report not found"
+          cp -r all-reports/artifacts/endurance/html-report/* site/endurance/ 2>/dev/null || echo "⚠ Endurance report not found"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -321,19 +264,19 @@ jobs:
           export REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
           python3 - <<'PY'
           import csv, os, json
-          
+
           tests = [
-              ("Baseline", "all-reports/baseline-report/baseline-results.jtl", "50"),
-              ("Load", "all-reports/load150-report/load150-results.jtl", "150"),
-              ("Load", "all-reports/load300-report/load300-results.jtl", "300"),
-              ("Stress", "all-reports/stress500-report/stress500-results.jtl", "500"),
-              ("Endurance", "all-reports/endurance-report/endurance-results.jtl", "50 (10min)")
+              ("Light Load", "all-reports/jmeter/results/light_load.jtl", "25"),
+              ("Baseline",   "all-reports/jmeter/results/baseline_load.jtl", "50"),
+              ("Peak Load",  "all-reports/jmeter/results/peak_load.jtl", "300"),
+              ("Stress",     "all-reports/jmeter/results/stress_test.jtl", "500"),
+              ("Endurance",  "all-reports/jmeter/results/endurance_test.jtl", "100")
           ]
-          
+
           rows = []
           run_num = os.environ.get('GITHUB_RUN_NUMBER', '0')
           report_url = os.environ.get('REPORT_URL', '')
-          
+
           for name, path, users in tests:
               if not os.path.exists(path):
                   continue
@@ -348,33 +291,33 @@ jobs:
                           if row['success'] == 'false':
                               errors += 1
                           total_rt += int(row['elapsed'])
-                      
+
                       avg_rt = round(total_rt / samples) if samples > 0 else 0
                       error_pct = (errors / samples * 100) if samples > 0 else 0
                       rows.append([name, users, samples, errors, f"{error_pct:.2f}%", f"{avg_rt}ms"])
               except Exception as e:
                   print(f"Error parsing {path}: {e}")
-          
+
           # HTML Table for Email
           html_table = "<table border='1' style='border-collapse: collapse; width: 100%; text-align: center; font-family: Arial;'>"
           html_table += "<tr style='background-color: #0066cc; color: white;'><th>Test</th><th>Users</th><th>Samples</th><th>Errors</th><th>Error %</th><th>Avg RT</th></tr>"
           for r in rows:
               html_table += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td><td>{r[5]}</td></tr>"
           html_table += "</table>"
-          
+
           with open("email_body.html", "w") as f:
               f.write(f"<h3>DemoBlaze Performance Test Results — Run #{run_num}</h3>")
               f.write(html_table)
               f.write(f"<p><a href='{report_url}' style='display: inline-block; padding: 10px 20px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 5px;'>View Full HTML Reports</a></p>")
-          
+
           # Slack Text Table
           slack_table = "```\n"
-          slack_table += "| Test      | Users | Samples | Errors | Error % | Avg RT |\n"
-          slack_table += "|-----------|-------|---------|--------|---------|--------|\n"
+          slack_table += "| Test       | Users | Samples | Errors | Error % | Avg RT |\n"
+          slack_table += "|------------|-------|---------|--------|---------|--------|\n"
           for r in rows:
-              slack_table += f"| {r[0]:<9} | {r[1]:<5} | {r[2]:<7} | {r[3]:<6} | {r[4]:<7} | {r[5]:<6} |\n"
+              slack_table += f"| {r[0]:<10} | {r[1]:<5} | {r[2]:<7} | {r[3]:<6} | {r[4]:<7} | {r[5]:<6} |\n"
           slack_table += "```"
-          
+
           slack_payload = {
               "text": f"🚀 *JMeter Performance Report — Run #{run_num}*\n\n{slack_table}\n\nView full report: {report_url}"
           }
