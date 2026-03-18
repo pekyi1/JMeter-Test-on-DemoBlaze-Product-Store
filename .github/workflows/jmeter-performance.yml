@@ -46,30 +46,35 @@ jobs:
       - name: Generate HTML report — Light Load (25 Users)
         if: always()
         run: |
+          mkdir -p artifacts/light-load
           apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/light_load.jtl \
             -o artifacts/light-load/html-report
 
       - name: Generate HTML report — Baseline (50 Users)
         if: always()
         run: |
+          mkdir -p artifacts/baseline
           apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/baseline_load.jtl \
             -o artifacts/baseline/html-report
 
       - name: Generate HTML report — Peak Load (300 Users)
         if: always()
         run: |
+          mkdir -p artifacts/peak-load
           apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/peak_load.jtl \
             -o artifacts/peak-load/html-report
 
       - name: Generate HTML report — Stress Test (500 Users)
         if: always()
         run: |
+          mkdir -p artifacts/stress-test
           apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/stress_test.jtl \
             -o artifacts/stress-test/html-report
 
       - name: Generate HTML report — Endurance (100 Users)
         if: always()
         run: |
+          mkdir -p artifacts/endurance
           apache-jmeter-5.6.3/bin/jmeter -g jmeter/results/endurance_test.jtl \
             -o artifacts/endurance/html-report
 
